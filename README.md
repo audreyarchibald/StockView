@@ -25,11 +25,14 @@ Endpoints:
 * `POST /backtest` – JSON body `{"data": "data/sample_stock.csv", "short": 5, "long": 20}`
 * `GET  /scan` – query parameters `data`, `short`, `long`
 
-## Training a simple ML model
+## Training a candlestick pattern classifier
+The `backend/ml.py` script now supports a small labeled dataset in `data/labeled_candles.csv` and offers two algorithms:
+
 ```bash
-python backend/ml.py
+python backend/ml.py --algo logreg
 ```
-This trains a logistic regression classifier (implemented with only the Python standard library) on the sample dataset and prints the training accuracy.
+
+Use `--algo knn` to try a k-nearest-neighbours model. The script splits the dataset into training and validation sets and prints accuracy, precision, recall and F1 score.
 
 ## Graphical User Interface
 ```bash
