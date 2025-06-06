@@ -36,3 +36,20 @@ This trains a logistic regression classifier (implemented with only the Python s
 python backend/gui.py
 ```
 A small Tkinter GUI lets you run the backtest or train the ML model with custom parameters.
+
+## Quick start script
+You can use `start.py` to launch various utilities:
+
+```bash
+# Start the HTTP server
+python start.py --server
+
+# Launch the GUI
+python start.py --gui
+
+# Run the CLI backtest
+python start.py --backtest
+
+# Train the ML model
+python start.py --train
+```
