@@ -1,8 +1,14 @@
-import csv
-import math
-from random import random
+import argparse
 
 from backtest import load_prices, sma
+from models import (
+    train_logistic_regression,
+    predict_logistic,
+    RandomForestClassifier,
+    AdaBoostClassifier,
+    accuracy_score,
+    f1_score,
+)
 
 
 def _prepare_dataset(path, short_window, long_window):
@@ -23,39 +29,12 @@ def _prepare_dataset(path, short_window, long_window):
     return X, y
 
 
-def train_logistic_regression(X, y, lr=0.1, epochs=1000):
-    """Train a simple logistic regression model using SGD."""
-    if not X:
-        raise ValueError("Empty dataset")
-    n_features = len(X[0])
-    weights = [random() * 0.01 for _ in range(n_features)]
-    bias = 0.0
-    for _ in range(epochs):
-        for xi, yi in zip(X, y):
-            z = bias + sum(w * x for w, x in zip(weights, xi))
-            pred = 1 / (1 + math.exp(-z))
-            error = yi - pred
-            bias += lr * error
-            for i in range(n_features):
-                weights[i] += lr * error * xi[i]
-    return weights, bias
-
-
-def predict(X, weights, bias):
-    preds = []
-    for xi in X:
-        z = bias + sum(w * x for w, x in zip(weights, xi))
-        p = 1 / (1 + math.exp(-z))
-        preds.append(1 if p >= 0.5 else 0)
-    return preds
-
-
 def train(path='data/sample_stock.csv', short_window=5, long_window=20):
+    """Backwards compatible training function (logistic regression)."""
     X, y = _prepare_dataset(path, short_window, long_window)
     weights, bias = train_logistic_regression(X, y)
-    preds = predict(X, weights, bias)
-    correct = sum(p == t for p, t in zip(preds, y))
-    accuracy = correct / len(y) if y else 0
+    preds = predict_logistic(X, weights, bias)
+    accuracy = accuracy_score(y, preds)
     return {
         'weights': weights,
         'bias': bias,
@@ -63,6 +42,42 @@ def train(path='data/sample_stock.csv', short_window=5, long_window=20):
     }
 
 
+def evaluate_models(path, short_window, long_window, model_names):
+    X, y = _prepare_dataset(path, short_window, long_window)
+    split = int(0.8 * len(X))
+    X_train, y_train = X[:split], y[:split]
+    X_val, y_val = X[split:], y[split:]
+    results = {}
+    for name in model_names:
+        if name == 'logistic':
+            weights, bias = train_logistic_regression(X_train, y_train)
+            preds = predict_logistic(X_val, weights, bias)
+        elif name == 'forest':
+            model = RandomForestClassifier()
+            model.fit(X_train, y_train)
+            preds = model.predict(X_val)
+        elif name == 'boost':
+            model = AdaBoostClassifier()
+            model.fit(X_train, y_train)
+            preds = model.predict(X_val)
+        else:
+            raise ValueError(f'Unknown model: {name}')
+        acc = accuracy_score(y_val, preds)
+        f1 = f1_score(y_val, preds)
+        results[name] = {'accuracy': acc, 'f1': f1}
+    return results
+
+
 if __name__ == '__main__':
-    result = train()
-    print('Training accuracy: {:.2%}'.format(result['accuracy']))
+    parser = argparse.ArgumentParser(description='Train and evaluate ML models.')
+    parser.add_argument('--data', default='data/sample_stock.csv', help='Path to CSV file')
+    parser.add_argument('--short', type=int, default=5, help='Short moving average window')
+    parser.add_argument('--long', type=int, default=20, help='Long moving average window')
+    parser.add_argument('--model', choices=['logistic', 'forest', 'boost', 'all'], default='logistic', help='Model to train')
+    args = parser.parse_args()
+
+    models = ['logistic', 'forest', 'boost'] if args.model == 'all' else [args.model]
+    results = evaluate_models(args.data, args.short, args.long, models)
+    for name in models:
+        res = results[name]
+        print(f"{name.capitalize()} - Accuracy: {res['accuracy']:.2%} F1: {res['f1']:.2f}")
