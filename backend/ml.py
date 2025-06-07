@@ -23,6 +23,31 @@ def _prepare_dataset(path, short_window, long_window):
     return X, y
 
 
+def candlestick_features(row):
+    """Return simple candlestick features for a CSV row."""
+    op = float(row['Open'])
+    hi = float(row['High'])
+    lo = float(row['Low'])
+    cl = float(row['Close'])
+    body = cl - op
+    upper = hi - max(op, cl)
+    lower = min(op, cl) - lo
+    rng = hi - lo
+    return [body, upper, lower, rng]
+
+
+def _prepare_pattern_dataset(path):
+    """Return features and labels for candlestick pattern classification."""
+    X, y = [], []
+    with open(path) as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            X.append(candlestick_features(row))
+            label = row.get('Pattern', '')
+            y.append(1 if label.lower().startswith('bull') else 0)
+    return X, y
+
+
 def train_logistic_regression(X, y, lr=0.1, epochs=1000):
     """Train a simple logistic regression model using SGD."""
     if not X:
@@ -63,6 +88,22 @@ def train(path='data/sample_stock.csv', short_window=5, long_window=20):
     }
 
 
+def train_pattern_classifier(path='data/candlestick_patterns.csv'):
+    """Train logistic regression to classify bullish/bearish patterns."""
+    X, y = _prepare_pattern_dataset(path)
+    weights, bias = train_logistic_regression(X, y)
+    preds = predict(X, weights, bias)
+    correct = sum(p == t for p, t in zip(preds, y))
+    accuracy = correct / len(y) if y else 0
+    return {
+        'weights': weights,
+        'bias': bias,
+        'accuracy': accuracy,
+    }
+
+
 if __name__ == '__main__':
     result = train()
-    print('Training accuracy: {:.2%}'.format(result['accuracy']))
+    print('MA model accuracy: {:.2%}'.format(result['accuracy']))
+    pattern_result = train_pattern_classifier()
+    print('Pattern classifier accuracy: {:.2%}'.format(pattern_result['accuracy']))
